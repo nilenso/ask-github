@@ -68,7 +68,7 @@ ask-github https://github.com/torvalds/linux "Explain the scheduler" \
 
 ### CLI Options
 
-- `--max-iterations`: Maximum number of agentic loop iterations (default: 150)
+- `--max-iterations`: Maximum number of agentic loop iterations (default: 20)
 - `--llm-*`: Pass any litellm configuration parameter with `--llm-` prefix
   - `--llm-model`: Choose the model (default: gpt-5)
   - `--llm-temperature`: Control randomness (0.0-2.0)

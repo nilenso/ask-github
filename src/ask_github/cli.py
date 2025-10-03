@@ -90,8 +90,8 @@ LLM Options:
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=150,
-        help="Maximum number of agentic loop iterations (default: 150)"
+        default=20,
+        help="Maximum number of agentic loop iterations (default: 20)"
     )
 
     args = parser.parse_args(filtered_argv)

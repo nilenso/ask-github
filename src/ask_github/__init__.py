@@ -249,14 +249,14 @@ def execute_tool(tool_name: str, arguments: dict[str, Any]) -> Any:
         raise ValueError(f"Unknown tool: {tool_name}")
 
 
-def ask(repo_url: str, prompt: str, max_iterations: int = 150, **litellm_config) -> str:
+def ask(repo_url: str, prompt: str, max_iterations: int = 20, **litellm_config) -> str:
     """
     Ask a question about a GitHub repository.
 
     Args:
         repo_url: URL of the GitHub repository
         prompt: Question or prompt about the repository
-        max_iterations: Maximum number of agentic loop iterations (default: 150)
+        max_iterations: Maximum number of agentic loop iterations (default: 20)
         **litellm_config: Additional configuration for litellm.completion()
                          (e.g., model, temperature, max_tokens, etc.)
 
