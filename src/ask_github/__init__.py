@@ -33,14 +33,20 @@ def parse_repo_url(repo_url: str) -> tuple[str, str]:
 
 
 # GitHub API wrapper functions
-def get_repo_info(owner: str, repo: str) -> dict[str, Any]:
+def get_repo_info(owner: str, repo: str, github_token: str | None = None) -> dict[str, Any]:
     """Get repository information including default branch."""
     url = f"https://api.github.com/repos/{owner}/{repo}"
     logger.info(f"[get_repo_info] GET {url}")
 
     headers = {}
-    if token := os.getenv("GITHUB_TOKEN"):
-        headers["Authorization"] = f"token {token}"
+    token = github_token or os.getenv("GITHUB_TOKEN")
+    if token:
+        # Use Bearer for fine-grained tokens (github_pat_*), token for classic tokens (ghp_*)
+        prefix = "Bearer" if token.startswith("github_pat_") else "token"
+        headers["Authorization"] = f"{prefix} {token}"
+        logger.info(f"[get_repo_info] Using {prefix} auth with token: {token[:20]}...")
+    else:
+        logger.warning(f"[get_repo_info] No GitHub token provided!")
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
@@ -49,7 +55,7 @@ def get_repo_info(owner: str, repo: str) -> dict[str, Any]:
     return data
 
 
-def read_file(owner: str, repo: str, path: str, ref: str | None = None) -> str:
+def read_file(owner: str, repo: str, path: str, ref: str | None = None, github_token: str | None = None) -> str:
     """Read a file from the repository."""
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     if ref:
@@ -57,8 +63,11 @@ def read_file(owner: str, repo: str, path: str, ref: str | None = None) -> str:
     logger.info(f"[read_file] GET {url}")
 
     headers = {}
-    if token := os.getenv("GITHUB_TOKEN"):
-        headers["Authorization"] = f"token {token}"
+    token = github_token or os.getenv("GITHUB_TOKEN")
+    if token:
+        # Use Bearer for fine-grained tokens (github_pat_*), token for classic tokens (ghp_*)
+        prefix = "Bearer" if token.startswith("github_pat_") else "token"
+        headers["Authorization"] = f"{prefix} {token}"
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
@@ -71,7 +80,7 @@ def read_file(owner: str, repo: str, path: str, ref: str | None = None) -> str:
     raise ValueError(f"Path {path} is not a file")
 
 
-def list_directory(owner: str, repo: str, path: str, ref: str | None = None) -> list[dict[str, Any]]:
+def list_directory(owner: str, repo: str, path: str, ref: str | None = None, github_token: str | None = None) -> list[dict[str, Any]]:
     """List contents of a directory."""
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     if ref:
@@ -79,8 +88,11 @@ def list_directory(owner: str, repo: str, path: str, ref: str | None = None) -> 
     logger.info(f"[list_directory] GET {url}")
 
     headers = {}
-    if token := os.getenv("GITHUB_TOKEN"):
-        headers["Authorization"] = f"token {token}"
+    token = github_token or os.getenv("GITHUB_TOKEN")
+    if token:
+        # Use Bearer for fine-grained tokens (github_pat_*), token for classic tokens (ghp_*)
+        prefix = "Bearer" if token.startswith("github_pat_") else "token"
+        headers["Authorization"] = f"{prefix} {token}"
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
@@ -93,7 +105,7 @@ def list_directory(owner: str, repo: str, path: str, ref: str | None = None) -> 
     raise ValueError(f"Path {path} is not a directory")
 
 
-def list_tree(owner: str, repo: str, ref: str, recursive: bool = True) -> list[dict[str, Any]]:
+def list_tree(owner: str, repo: str, ref: str, recursive: bool = True, github_token: str | None = None) -> list[dict[str, Any]]:
     """Get the full file tree of the repository."""
     url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{ref}"
     if recursive:
@@ -101,8 +113,11 @@ def list_tree(owner: str, repo: str, ref: str, recursive: bool = True) -> list[d
     logger.info(f"[list_tree] GET {url}")
 
     headers = {}
-    if token := os.getenv("GITHUB_TOKEN"):
-        headers["Authorization"] = f"token {token}"
+    token = github_token or os.getenv("GITHUB_TOKEN")
+    if token:
+        # Use Bearer for fine-grained tokens (github_pat_*), token for classic tokens (ghp_*)
+        prefix = "Bearer" if token.startswith("github_pat_") else "token"
+        headers["Authorization"] = f"{prefix} {token}"
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
@@ -115,15 +130,18 @@ def list_tree(owner: str, repo: str, ref: str, recursive: bool = True) -> list[d
     return []
 
 
-def search_code(owner: str, repo: str, query: str, per_page: int = 30, page: int = 1) -> dict[str, Any]:
+def search_code(owner: str, repo: str, query: str, per_page: int = 30, page: int = 1, github_token: str | None = None) -> dict[str, Any]:
     """Search for code in the repository."""
     search_query = f"{query}+repo:{owner}/{repo}"
     url = f"https://api.github.com/search/code?q={search_query}&per_page={per_page}&page={page}"
     logger.info(f"[search_code] GET {url}")
 
     headers = {}
-    if token := os.getenv("GITHUB_TOKEN"):
-        headers["Authorization"] = f"token {token}"
+    token = github_token or os.getenv("GITHUB_TOKEN")
+    if token:
+        # Use Bearer for fine-grained tokens (github_pat_*), token for classic tokens (ghp_*)
+        prefix = "Bearer" if token.startswith("github_pat_") else "token"
+        headers["Authorization"] = f"{prefix} {token}"
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
@@ -231,25 +249,29 @@ TOOLS = [
 ]
 
 
-def execute_tool(tool_name: str, arguments: dict[str, Any]) -> Any:
+def execute_tool(tool_name: str, arguments: dict[str, Any], github_token: str | None = None) -> Any:
     """Execute a tool by name with given arguments."""
     logger.info(f"[execute_tool] Calling {tool_name} with args: {json.dumps(arguments, indent=2)}")
+    logger.info(f"[execute_tool] GitHub token present: {github_token is not None}, starts with: {github_token[:15] + '...' if github_token else 'None'}")
+
+    # Add github_token to arguments
+    tool_args = {**arguments, "github_token": github_token}
 
     if tool_name == "get_repo_info":
-        return get_repo_info(**arguments)
+        return get_repo_info(**tool_args)
     elif tool_name == "read_file":
-        return read_file(**arguments)
+        return read_file(**tool_args)
     elif tool_name == "list_directory":
-        return list_directory(**arguments)
+        return list_directory(**tool_args)
     elif tool_name == "list_tree":
-        return list_tree(**arguments)
+        return list_tree(**tool_args)
     elif tool_name == "search_code":
-        return search_code(**arguments)
+        return search_code(**tool_args)
     else:
         raise ValueError(f"Unknown tool: {tool_name}")
 
 
-def ask(repo_url: str, prompt: str, max_iterations: int = 20, **litellm_config) -> str:
+def ask(repo_url: str, prompt: str, max_iterations: int = 20, github_token: str | None = None, **litellm_config) -> str:
     """
     Ask a question about a GitHub repository.
 
@@ -257,6 +279,8 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, **litellm_config) 
         repo_url: URL of the GitHub repository
         prompt: Question or prompt about the repository
         max_iterations: Maximum number of agentic loop iterations (default: 20)
+        github_token: GitHub personal access token for API authentication and private repo access
+                     If not provided, will use GITHUB_TOKEN environment variable
         **litellm_config: Additional configuration for litellm.completion()
                          (e.g., model, temperature, max_tokens, etc.)
 
@@ -327,7 +351,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, **litellm_config) 
             """Execute a single tool call and return the result."""
             try:
                 arguments = json.loads(tool_call.function.arguments)
-                result = execute_tool(tool_call.function.name, arguments)
+                result = execute_tool(tool_call.function.name, arguments, github_token)
                 return {
                     "role": "tool",
                     "tool_call_id": tool_call.id,

@@ -68,9 +68,14 @@ Examples:
   # With custom LLM model
   ask-github https://github.com/owner/repo "How does auth work?" --llm-model gpt-4o
 
-  # With multiple LLM parameters
+  # Access a private repository
+  ask-github https://github.com/owner/private-repo "Explain the code" \\
+    --github-token ghp_your_token_here
+
+  # With multiple parameters
   ask-github https://github.com/torvalds/linux "Explain the scheduler" \\
     --max-iterations 30 \\
+    --github-token ghp_your_token_here \\
     --llm-model claude-3-5-sonnet-20241022 \\
     --llm-temperature 0.5 \\
     --llm-max-tokens 4000
@@ -93,6 +98,11 @@ LLM Options:
         default=20,
         help="Maximum number of agentic loop iterations (default: 20)"
     )
+    parser.add_argument(
+        "--github-token",
+        type=str,
+        help="GitHub personal access token for authentication and private repo access. If not provided, uses GITHUB_TOKEN environment variable"
+    )
 
     args = parser.parse_args(filtered_argv)
 
@@ -101,6 +111,7 @@ LLM Options:
             args.repo_url,
             args.prompt,
             max_iterations=args.max_iterations,
+            github_token=args.github_token,
             **llm_config
         )
         print(response)
