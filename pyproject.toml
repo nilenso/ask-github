@@ -1,0 +1,17 @@
+[project]
+name = "ask-github"
+version = "0.1.0"
+description = "Ask questions about GitHub repositories using AI"
+readme = "README.md"
+authors = [
+    { name = "Srihari Sriraman", email = "srihari@nilenso.com" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+ask-github = "ask_github.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
