@@ -249,19 +249,31 @@ def execute_tool(tool_name: str, arguments: dict[str, Any]) -> Any:
         raise ValueError(f"Unknown tool: {tool_name}")
 
 
-def ask(repo_url: str, prompt: str) -> str:
+def ask(repo_url: str, prompt: str, max_iterations: int = 150, **litellm_config) -> str:
     """
     Ask a question about a GitHub repository.
 
     Args:
         repo_url: URL of the GitHub repository
         prompt: Question or prompt about the repository
+        max_iterations: Maximum number of agentic loop iterations (default: 150)
+        **litellm_config: Additional configuration for litellm.completion()
+                         (e.g., model, temperature, max_tokens, etc.)
 
     Returns:
         Text response to the question
     """
     # Parse repository URL
     owner, repo = parse_repo_url(repo_url)
+
+    # Set default litellm config values
+    llm_params = {
+        "model": "gpt-5",
+        "tools": TOOLS,
+        "parallel_tool_calls": True,
+    }
+    # Override with user-provided config
+    llm_params.update(litellm_config)
 
     # Initialize conversation with system message and user prompt
     messages = [
@@ -276,14 +288,11 @@ def ask(repo_url: str, prompt: str) -> str:
     ]
 
     # Agentic loop with tool use
-    max_iterations = 150
     for iteration in range(max_iterations):
         # Call LiteLLM with parallel tool calls enabled
         response = completion(
-            model="gpt-5",
             messages=messages,
-            tools=TOOLS,
-            parallel_tool_calls=True,
+            **llm_params
         )
 
         message = response.choices[0].message
