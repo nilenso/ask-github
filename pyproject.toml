@@ -7,7 +7,11 @@ authors = [
     { name = "Srihari Sriraman", email = "srihari@nilenso.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "litellm>=1.0.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+]
 
 [project.scripts]
 ask-github = "ask_github.cli:main"
