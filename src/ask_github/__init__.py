@@ -2,13 +2,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 import litellm
 from litellm import completion
 
-from . import github
+from . import github, gitlab
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,6 +20,23 @@ os.environ['LITELLM_LOG'] = 'INFO'
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+Platform = Literal["github", "gitlab"]
+
+
+def detect_platform(repo_url: str) -> Platform:
+    """Detect the platform (GitHub or GitLab) from the repository URL."""
+    parsed = urlparse(repo_url)
+    hostname = parsed.hostname or ""
+
+    if "github.com" in hostname:
+        return "github"
+    elif "gitlab.com" in hostname:
+        return "gitlab"
+    else:
+        # Default to GitHub for unknown domains
+        logger.warning(f"Unknown platform for URL {repo_url}, defaulting to GitHub")
+        return "github"
 
 
 # Tool definitions for LiteLLM
@@ -110,49 +128,65 @@ TOOLS = [
 ]
 
 
-def execute_tool(tool_name: str, arguments: dict[str, Any], github_token: str | None = None) -> Any:
-    """Execute a tool by name with given arguments."""
-    logger.info(f"[execute_tool] Calling {tool_name} with args: {json.dumps(arguments, indent=2)}")
-    logger.info(f"[execute_tool] GitHub token present: {github_token is not None}, starts with: {github_token[:15] + '...' if github_token else 'None'}")
+def execute_tool(tool_name: str, arguments: dict[str, Any], platform: Platform, token: str | None = None) -> Any:
+    """Execute a tool by name with given arguments on the specified platform."""
+    logger.info(f"[execute_tool] Platform: {platform}, Tool: {tool_name}")
+    logger.info(f"[execute_tool] Arguments: {json.dumps(arguments, indent=2)}")
+    logger.info(f"[execute_tool] Token present: {token is not None}, starts with: {token[:15] + '...' if token else 'None'}")
 
-    # Add github_token to arguments
-    tool_args = {**arguments, "github_token": github_token}
+    # Add token to arguments (parameter name is github_token for API compatibility)
+    tool_args = {**arguments, "github_token": token}
 
-    # Dispatch to GitHub API functions
-    # TODO: Add platform detection and dispatch to gitlab/github based on URL
+    # Select platform module
+    module = github if platform == "github" else gitlab
+
+    # Dispatch to platform-specific API functions
     if tool_name == "get_repo_info":
-        return github.get_repo_info(**tool_args)
+        return module.get_repo_info(**tool_args)
     elif tool_name == "read_file":
-        return github.read_file(**tool_args)
+        return module.read_file(**tool_args)
     elif tool_name == "list_directory":
-        return github.list_directory(**tool_args)
+        return module.list_directory(**tool_args)
     elif tool_name == "list_tree":
-        return github.list_tree(**tool_args)
+        return module.list_tree(**tool_args)
     elif tool_name == "search_code":
-        return github.search_code(**tool_args)
+        return module.search_code(**tool_args)
     else:
         raise ValueError(f"Unknown tool: {tool_name}")
 
 
-def ask(repo_url: str, prompt: str, max_iterations: int = 20, github_token: str | None = None, **litellm_config) -> str:
+def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None = None, github_token: str | None = None, **litellm_config) -> str:
     """
-    Ask a question about a GitHub repository.
+    Ask a question about a GitHub or GitLab repository.
 
     Args:
-        repo_url: URL of the GitHub repository
+        repo_url: URL of the GitHub or GitLab repository
         prompt: Question or prompt about the repository
         max_iterations: Maximum number of agentic loop iterations (default: 20)
-        github_token: GitHub personal access token for API authentication and private repo access
-                     If not provided, will use GITHUB_TOKEN environment variable
+        token: API token for authentication and private repo access
+               If not provided, will use GITHUB_TOKEN or GITLAB_TOKEN environment variable
+        github_token: (Deprecated) Use 'token' parameter instead. Kept for backwards compatibility.
         **litellm_config: Additional configuration for litellm.completion()
                          (e.g., model, temperature, max_tokens, etc.)
 
     Returns:
         Text response to the question
     """
-    # Parse repository URL
-    # TODO: Add platform detection (GitHub/GitLab) based on URL
-    owner, repo = github.parse_repo_url(repo_url)
+    # Detect platform from URL
+    platform = detect_platform(repo_url)
+    logger.info(f"[ask] Detected platform: {platform}")
+
+    # Parse repository URL using platform-specific parser
+    module = github if platform == "github" else gitlab
+    owner, repo = module.parse_repo_url(repo_url)
+
+    # Handle token - support both new 'token' param and legacy 'github_token'
+    auth_token = token or github_token
+    if not auth_token:
+        # Use platform-specific environment variable
+        env_var = "GITHUB_TOKEN" if platform == "github" else "GITLAB_TOKEN"
+        auth_token = os.getenv(env_var)
+        logger.info(f"[ask] Using {env_var} from environment")
 
     # Set default litellm config values
     llm_params = {
@@ -164,10 +198,11 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, github_token: str 
     llm_params.update(litellm_config)
 
     # Initialize conversation with system message and user prompt
+    platform_name = "GitHub" if platform == "github" else "GitLab"
     messages = [
         {
             "role": "system",
-            "content": f"Use GitHub API tools to answer the given questions by exploring and analyzing the repository {owner}/{repo}. Use the API tools like you would use filesystem tools to list and read files. Make tool calls in parallel, and read only enough files to answer the questions."
+            "content": f"Use {platform_name} API tools to answer the given questions by exploring and analyzing the repository {owner}/{repo}. Use the API tools like you would use filesystem tools to list and read files. Make tool calls in parallel, and read only enough files to answer the questions."
         },
         {
             "role": "user",
@@ -215,7 +250,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, github_token: str 
             """Execute a single tool call and return the result."""
             try:
                 arguments = json.loads(tool_call.function.arguments)
-                result = execute_tool(tool_call.function.name, arguments, github_token)
+                result = execute_tool(tool_call.function.name, arguments, platform, auth_token)
                 return {
                     "role": "tool",
                     "tool_call_id": tool_call.id,
