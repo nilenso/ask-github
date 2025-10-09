@@ -80,6 +80,7 @@ response = ask(
     repo_url="https://github.com/torvalds/linux",
     prompt="How is memory management implemented?",
     max_iterations=50,
+    max_workers=20,  # Increase parallelism for faster analysis
     token="ghp_your_token_here",  # Optional: pass token directly
     model="gpt-4o",
     temperature=0.7,
@@ -146,6 +147,7 @@ ask-github https://gitlab.com/gitlab-org/gitlab "Explain the database schema" \
 # Combine all options (GitHub)
 ask-github https://github.com/torvalds/linux "Explain the scheduler" \
   --max-iterations 30 \
+  --max-workers 20 \
   --token ghp_your_token_here \
   --llm-model claude-3-5-sonnet-20241022 \
   --llm-temperature 0.5
@@ -179,6 +181,7 @@ Simply paste any repository URL and the tool will automatically detect and use t
 ### CLI Options
 
 - `--max-iterations`: Maximum number of agentic loop iterations (default: 20)
+- `--max-workers`: Maximum number of parallel tool calls (default: 15)
 - `--token`: API token for authentication and private repo access (uses GITHUB_TOKEN or GITLAB_TOKEN env var if not provided)
 - `--github-token`: (Deprecated) Use `--token` instead. Kept for backwards compatibility
 - `--llm-*`: Pass any litellm configuration parameter with `--llm-` prefix

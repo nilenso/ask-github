@@ -162,7 +162,7 @@ def execute_tool(tool_name: str, arguments: dict[str, Any], platform: Platform, 
         raise ValueError(f"Unknown tool: {tool_name}")
 
 
-def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None = None, github_token: str | None = None, **litellm_config) -> str:
+def ask(repo_url: str, prompt: str, max_iterations: int = 20, max_workers: int = 15, token: str | None = None, github_token: str | None = None, **litellm_config) -> str:
     """
     Ask a question about a GitHub or GitLab repository.
 
@@ -170,6 +170,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
         repo_url: URL of the GitHub or GitLab repository (can include branch, e.g., /tree/branch-name)
         prompt: Question or prompt about the repository
         max_iterations: Maximum number of agentic loop iterations (default: 20)
+        max_workers: Maximum number of parallel tool calls (default: 15)
         token: API token for authentication and private repo access
                If not provided, will use GITHUB_TOKEN or GITLAB_TOKEN environment variable
         github_token: (Deprecated) Use 'token' parameter instead. Kept for backwards compatibility.
@@ -217,7 +218,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
     messages = [
         {
             "role": "system",
-            "content": f"Use {platform_name} API tools to answer the given questions by exploring and analyzing the repository {owner}/{repo} (branch: {ref}). Use the API tools like you would use filesystem tools to list and read files. Make tool calls in parallel, and read only enough files to answer the questions. When calling tools that accept a 'ref' parameter, you can omit it to use the default branch '{ref}', or specify a different branch/commit if needed. Call list_tree and get_repo_info first in parallel, and then use the list of files and directories to issue read_files calls. Issuing read_files calls in parallel is faster."
+            "content": f"Use {platform_name} API tools to answer the given questions by exploring and analyzing the repository {owner}/{repo} (branch: {ref}). Use the API tools like you would use filesystem tools to list and read files. You can execute up to {max_workers} tool calls in parallel - use this to your advantage by batching file reads and directory listings. When calling tools that accept a 'ref' parameter, you can omit it to use the default branch '{ref}', or specify a different branch/commit if needed. Call list_tree and get_repo_info first in parallel, and then use the list of files and directories to issue many read_file calls in parallel."
         },
         {
             "role": "user",
@@ -280,7 +281,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
                 }
 
         # Use ThreadPoolExecutor to execute tool calls in parallel
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tool calls
             futures = {executor.submit(execute_single_tool, tc): tc for tc in message.tool_calls}
 

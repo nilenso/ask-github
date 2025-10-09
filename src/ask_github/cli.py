@@ -82,6 +82,7 @@ Examples:
   # With multiple parameters
   ask-github https://github.com/torvalds/linux "Explain the scheduler" \\
     --max-iterations 30 \\
+    --max-workers 20 \\
     --token ghp_your_token_here \\
     --llm-model claude-3-5-sonnet-20241022 \\
     --llm-temperature 0.5 \\
@@ -106,6 +107,12 @@ LLM Options:
         help="Maximum number of agentic loop iterations (default: 20)"
     )
     parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=15,
+        help="Maximum number of parallel tool calls (default: 15)"
+    )
+    parser.add_argument(
         "--token",
         type=str,
         help="API token for authentication and private repo access. Uses GITHUB_TOKEN or GITLAB_TOKEN environment variable if not provided"
@@ -123,6 +130,7 @@ LLM Options:
             args.repo_url,
             args.prompt,
             max_iterations=args.max_iterations,
+            max_workers=args.max_workers,
             token=args.token,
             github_token=args.github_token,
             **llm_config
