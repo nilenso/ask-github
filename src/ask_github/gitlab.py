@@ -11,13 +11,31 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-def parse_repo_url(repo_url: str) -> tuple[str, str]:
-    """Parse GitLab URL to extract owner and repo name."""
+def parse_repo_url(repo_url: str) -> tuple[str, str, str | None]:
+    """
+    Parse GitLab URL to extract owner, repo name, and optional ref.
+
+    Supports:
+    - https://gitlab.com/owner/repo -> (owner, repo, None)
+    - https://gitlab.com/owner/repo/-/tree/branch -> (owner, repo, branch)
+    - https://gitlab.com/owner/repo/-/blob/branch/path -> (owner, repo, branch)
+    - https://gitlab.com/owner/repo/-/commit/sha -> (owner, repo, sha)
+    """
     parsed = urlparse(repo_url)
     path_parts = parsed.path.strip("/").split("/")
+
     if len(path_parts) < 2:
         raise ValueError(f"Invalid GitLab URL: {repo_url}")
-    return path_parts[0], path_parts[1]
+
+    owner = path_parts[0]
+    repo = path_parts[1]
+    ref = None
+
+    # GitLab uses /-/ separator before tree/blob/commit
+    if len(path_parts) >= 5 and path_parts[2] == "-" and path_parts[3] in ["tree", "blob", "commit"]:
+        ref = path_parts[4]
+
+    return owner, repo, ref
 
 
 def _get_project_path(owner: str, repo: str) -> str:

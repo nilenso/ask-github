@@ -11,13 +11,31 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-def parse_repo_url(repo_url: str) -> tuple[str, str]:
-    """Parse GitHub URL to extract owner and repo name."""
+def parse_repo_url(repo_url: str) -> tuple[str, str, str | None]:
+    """
+    Parse GitHub URL to extract owner, repo name, and optional ref.
+
+    Supports:
+    - https://github.com/owner/repo -> (owner, repo, None)
+    - https://github.com/owner/repo/tree/branch -> (owner, repo, branch)
+    - https://github.com/owner/repo/blob/branch/path -> (owner, repo, branch)
+    - https://github.com/owner/repo/commit/sha -> (owner, repo, sha)
+    """
     parsed = urlparse(repo_url)
     path_parts = parsed.path.strip("/").split("/")
+
     if len(path_parts) < 2:
         raise ValueError(f"Invalid GitHub URL: {repo_url}")
-    return path_parts[0], path_parts[1]
+
+    owner = path_parts[0]
+    repo = path_parts[1]
+    ref = None
+
+    # Extract ref from tree/blob/commit URLs
+    if len(path_parts) >= 4 and path_parts[2] in ["tree", "blob", "commit"]:
+        ref = path_parts[3]
+
+    return owner, repo, ref
 
 
 def get_repo_info(owner: str, repo: str, github_token: str | None = None) -> dict[str, Any]:

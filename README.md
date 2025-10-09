@@ -24,7 +24,7 @@ os.environ["GITLAB_TOKEN"] = "glpat_..."  # Optional, for GitLab repos
 
 from ask_github import ask
 
-# Basic usage (GitHub)
+# Basic usage (GitHub, uses default branch)
 response = ask(
     repo_url="https://github.com/owner/repo",
     prompt="What does this repository do?"
@@ -35,6 +35,27 @@ print(response)
 response = ask(
     repo_url="https://gitlab.com/owner/repo",
     prompt="What does this repository do?"
+)
+print(response)
+
+# Analyze a specific branch (GitHub)
+response = ask(
+    repo_url="https://github.com/owner/repo/tree/feature-branch",
+    prompt="What changes are in this branch?"
+)
+print(response)
+
+# Analyze a specific branch (GitLab)
+response = ask(
+    repo_url="https://gitlab.com/owner/repo/-/tree/feature-branch",
+    prompt="What changes are in this branch?"
+)
+print(response)
+
+# Analyze a specific commit
+response = ask(
+    repo_url="https://github.com/owner/repo/commit/abc123def",
+    prompt="What was changed in this commit?"
 )
 print(response)
 
@@ -84,11 +105,20 @@ print(response)
 ### As a CLI
 
 ```bash
-# Basic usage (GitHub)
+# Basic usage (GitHub, uses default branch)
 ask-github https://github.com/owner/repo "What does this repository do?"
 
 # Basic usage (GitLab)
 ask-github https://gitlab.com/owner/repo "What does this repository do?"
+
+# Analyze a specific branch (GitHub)
+ask-github https://github.com/owner/repo/tree/feature-branch "What changes are in this branch?"
+
+# Analyze a specific branch (GitLab)
+ask-github https://gitlab.com/owner/repo/-/tree/feature-branch "What changes are in this branch?"
+
+# Analyze a specific commit
+ask-github https://github.com/owner/repo/commit/abc123 "What was changed in this commit?"
 
 # With custom max iterations
 ask-github https://github.com/owner/repo "Explain the architecture" --max-iterations 50
@@ -127,6 +157,24 @@ ask-github https://gitlab.com/gitlab-org/gitlab-runner "How does the runner arch
   --llm-model gpt-4o \
   --llm-temperature 0.5
 ```
+
+### Supported URL Formats
+
+Both GitHub and GitLab URLs are supported:
+
+**GitHub:**
+- `https://github.com/owner/repo` - Uses default branch
+- `https://github.com/owner/repo/tree/branch-name` - Specific branch
+- `https://github.com/owner/repo/blob/branch-name/path/to/file` - Specific branch
+- `https://github.com/owner/repo/commit/sha` - Specific commit
+
+**GitLab:**
+- `https://gitlab.com/owner/repo` - Uses default branch
+- `https://gitlab.com/owner/repo/-/tree/branch-name` - Specific branch
+- `https://gitlab.com/owner/repo/-/blob/branch-name/path/to/file` - Specific branch
+- `https://gitlab.com/owner/repo/-/commit/sha` - Specific commit
+
+Simply paste any repository URL and the tool will automatically detect and use the appropriate branch or commit.
 
 ### CLI Options
 

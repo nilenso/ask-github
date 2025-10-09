@@ -128,7 +128,7 @@ TOOLS = [
 ]
 
 
-def execute_tool(tool_name: str, arguments: dict[str, Any], platform: Platform, token: str | None = None) -> Any:
+def execute_tool(tool_name: str, arguments: dict[str, Any], platform: Platform, token: str | None = None, default_ref: str | None = None) -> Any:
     """Execute a tool by name with given arguments on the specified platform."""
     logger.info(f"[execute_tool] Platform: {platform}, Tool: {tool_name}")
     logger.info(f"[execute_tool] Arguments: {json.dumps(arguments, indent=2)}")
@@ -136,6 +136,14 @@ def execute_tool(tool_name: str, arguments: dict[str, Any], platform: Platform, 
 
     # Add token to arguments (parameter name is github_token for API compatibility)
     tool_args = {**arguments, "github_token": token}
+
+    # Tools that accept a ref parameter
+    tools_with_ref = ["read_file", "list_directory", "list_tree"]
+
+    # If the tool accepts ref and none was provided, use the default ref
+    if tool_name in tools_with_ref and "ref" not in arguments and default_ref:
+        tool_args["ref"] = default_ref
+        logger.info(f"[execute_tool] Injecting default ref: {default_ref}")
 
     # Select platform module
     module = github if platform == "github" else gitlab
@@ -160,7 +168,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
     Ask a question about a GitHub or GitLab repository.
 
     Args:
-        repo_url: URL of the GitHub or GitLab repository
+        repo_url: URL of the GitHub or GitLab repository (can include branch, e.g., /tree/branch-name)
         prompt: Question or prompt about the repository
         max_iterations: Maximum number of agentic loop iterations (default: 20)
         token: API token for authentication and private repo access
@@ -178,7 +186,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
 
     # Parse repository URL using platform-specific parser
     module = github if platform == "github" else gitlab
-    owner, repo = module.parse_repo_url(repo_url)
+    owner, repo, ref = module.parse_repo_url(repo_url)
 
     # Handle token - support both new 'token' param and legacy 'github_token'
     auth_token = token or github_token
@@ -187,6 +195,14 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
         env_var = "GITHUB_TOKEN" if platform == "github" else "GITLAB_TOKEN"
         auth_token = os.getenv(env_var)
         logger.info(f"[ask] Using {env_var} from environment")
+
+    # If no ref specified in URL, get the default branch
+    if ref is None:
+        repo_info = module.get_repo_info(owner, repo, github_token=auth_token)
+        ref = repo_info.get("default_branch", "main")
+        logger.info(f"[ask] No ref in URL, using default branch: {ref}")
+    else:
+        logger.info(f"[ask] Using ref from URL: {ref}")
 
     # Set default litellm config values
     llm_params = {
@@ -202,7 +218,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
     messages = [
         {
             "role": "system",
-            "content": f"Use {platform_name} API tools to answer the given questions by exploring and analyzing the repository {owner}/{repo}. Use the API tools like you would use filesystem tools to list and read files. Make tool calls in parallel, and read only enough files to answer the questions."
+            "content": f"Use {platform_name} API tools to answer the given questions by exploring and analyzing the repository {owner}/{repo} (branch: {ref}). Use the API tools like you would use filesystem tools to list and read files. Make tool calls in parallel, and read only enough files to answer the questions. When calling tools that accept a 'ref' parameter, you can omit it to use the default branch '{ref}', or specify a different branch/commit if needed. Call list_tree and get_repo_info first in parallel, and then use the list of files and directories to issue read files."
         },
         {
             "role": "user",
@@ -250,7 +266,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
             """Execute a single tool call and return the result."""
             try:
                 arguments = json.loads(tool_call.function.arguments)
-                result = execute_tool(tool_call.function.name, arguments, platform, auth_token)
+                result = execute_tool(tool_call.function.name, arguments, platform, auth_token, default_ref=ref)
                 return {
                     "role": "tool",
                     "tool_call_id": tool_call.id,
