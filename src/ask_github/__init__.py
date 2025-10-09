@@ -128,6 +128,55 @@ TOOLS = [
 ]
 
 
+def _get_module(platform: Platform):
+    """Get the platform-specific module (github or gitlab)."""
+    return github if platform == "github" else gitlab
+
+
+def _get_auth_token(platform: Platform, token: str | None = None, github_token: str | None = None) -> str | None:
+    """
+    Get authentication token for the platform.
+
+    Args:
+        platform: The platform (github or gitlab)
+        token: Explicitly provided token
+        github_token: Legacy token parameter (deprecated)
+
+    Returns:
+        The authentication token or None
+    """
+    auth_token = token or github_token
+    if not auth_token:
+        env_var = "GITHUB_TOKEN" if platform == "github" else "GITLAB_TOKEN"
+        auth_token = os.getenv(env_var)
+        if auth_token:
+            logger.debug(f"Using {env_var} from environment")
+    return auth_token
+
+
+def _get_ref(module, owner: str, repo: str, ref: str | None, auth_token: str | None) -> str:
+    """
+    Get the git reference (branch/tag/commit) to use.
+
+    Args:
+        module: Platform module (github or gitlab)
+        owner: Repository owner
+        repo: Repository name
+        ref: Reference from URL (may be None)
+        auth_token: Authentication token
+
+    Returns:
+        The resolved reference (branch name, tag, or commit SHA)
+    """
+    if ref is None:
+        repo_info = module.get_repo_info(owner, repo, github_token=auth_token)
+        ref = repo_info.get("default_branch", "main")
+        logger.debug(f"No ref in URL, using default branch: {ref}")
+    else:
+        logger.debug(f"Using ref from URL: {ref}")
+    return ref
+
+
 def execute_tool(tool_name: str, arguments: dict[str, Any], platform: Platform, token: str | None = None, default_ref: str | None = None) -> Any:
     """Execute a tool by name with given arguments on the specified platform."""
     logger.info(f"{tool_name}({', '.join(f'{k}={v}' for k, v in arguments.items())})")
@@ -145,7 +194,7 @@ def execute_tool(tool_name: str, arguments: dict[str, Any], platform: Platform, 
         logger.debug(f"[execute_tool] Injecting default ref: {default_ref}")
 
     # Select platform module
-    module = github if platform == "github" else gitlab
+    module = _get_module(platform)
 
     # Dispatch to platform-specific API functions
     if tool_name == "get_repo_info":
@@ -185,24 +234,14 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, max_workers: int =
     logger.debug(f"[ask] Detected platform: {platform}")
 
     # Parse repository URL using platform-specific parser
-    module = github if platform == "github" else gitlab
+    module = _get_module(platform)
     owner, repo, ref = module.parse_repo_url(repo_url)
 
-    # Handle token - support both new 'token' param and legacy 'github_token'
-    auth_token = token or github_token
-    if not auth_token:
-        # Use platform-specific environment variable
-        env_var = "GITHUB_TOKEN" if platform == "github" else "GITLAB_TOKEN"
-        auth_token = os.getenv(env_var)
-        logger.debug(f"[ask] Using {env_var} from environment")
+    # Get authentication token
+    auth_token = _get_auth_token(platform, token, github_token)
 
-    # If no ref specified in URL, get the default branch
-    if ref is None:
-        repo_info = module.get_repo_info(owner, repo, github_token=auth_token)
-        ref = repo_info.get("default_branch", "main")
-        logger.debug(f"[ask] No ref in URL, using default branch: {ref}")
-    else:
-        logger.debug(f"[ask] Using ref from URL: {ref}")
+    # Resolve git reference (branch/tag/commit)
+    ref = _get_ref(module, owner, repo, ref, auth_token)
 
     # Set default litellm config values
     llm_params = {
@@ -291,3 +330,34 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, max_workers: int =
                 messages.append(result)
 
     return "Maximum iterations reached. Unable to provide a complete answer."
+
+
+def list_tree(repo_url: str, recursive: bool = True, token: str | None = None) -> list[dict[str, Any]]:
+    """
+    Get the file tree of a repository directly without using LLM.
+
+    Args:
+        repo_url: URL of the GitHub or GitLab repository (can include branch, e.g., /tree/branch-name)
+        recursive: Get full recursive tree (default: True)
+        token: API token for authentication and private repo access
+               If not provided, will use GITHUB_TOKEN or GITLAB_TOKEN environment variable
+
+    Returns:
+        List of dictionaries with 'path' and 'type' keys for each file/directory
+    """
+    # Detect platform from URL
+    platform = detect_platform(repo_url)
+    logger.debug(f"[list_tree] Detected platform: {platform}")
+
+    # Parse repository URL using platform-specific parser
+    module = _get_module(platform)
+    owner, repo, ref = module.parse_repo_url(repo_url)
+
+    # Get authentication token
+    auth_token = _get_auth_token(platform, token)
+
+    # Resolve git reference (branch/tag/commit)
+    ref = _get_ref(module, owner, repo, ref, auth_token)
+
+    # Call tool directly
+    return module.list_tree(owner, repo, ref, recursive, github_token=auth_token)

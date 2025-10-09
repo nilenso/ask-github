@@ -103,6 +103,33 @@ print(response)
 
 **Note**: If you have a `.env` file, the library will automatically load it. Environment variables set programmatically will override `.env` values. The `token` parameter takes precedence over environment variables. The platform (GitHub/GitLab) is automatically detected from the repository URL.
 
+### Direct API Access (No LLM)
+
+For simple operations, you can bypass the LLM and call repository tools directly:
+
+```python
+from ask_github import list_tree
+
+# Get the complete file tree of a repository
+tree = list_tree("https://github.com/owner/repo")
+for item in tree:
+    print(f"{item['type']}: {item['path']}")
+
+# Get file tree for a specific branch
+tree = list_tree("https://github.com/owner/repo/tree/develop")
+
+# With authentication for private repos
+tree = list_tree(
+    "https://github.com/owner/private-repo",
+    token="ghp_your_token_here"
+)
+
+# Non-recursive (top-level only)
+tree = list_tree("https://github.com/owner/repo", recursive=False)
+```
+
+This is useful when you just need to list files without AI analysis, making it much faster and without LLM API costs.
+
 ### As a CLI
 
 ```bash
