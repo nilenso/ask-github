@@ -218,7 +218,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
     messages = [
         {
             "role": "system",
-            "content": f"Use {platform_name} API tools to answer the given questions by exploring and analyzing the repository {owner}/{repo} (branch: {ref}). Use the API tools like you would use filesystem tools to list and read files. Make tool calls in parallel, and read only enough files to answer the questions. When calling tools that accept a 'ref' parameter, you can omit it to use the default branch '{ref}', or specify a different branch/commit if needed. Call list_tree and get_repo_info first in parallel, and then use the list of files and directories to issue read files."
+            "content": f"Use {platform_name} API tools to answer the given questions by exploring and analyzing the repository {owner}/{repo} (branch: {ref}). Use the API tools like you would use filesystem tools to list and read files. Make tool calls in parallel, and read only enough files to answer the questions. When calling tools that accept a 'ref' parameter, you can omit it to use the default branch '{ref}', or specify a different branch/commit if needed. Call list_tree and get_repo_info first in parallel, and then use the list of files and directories to issue read_files calls. Issuing read_files calls in parallel is faster."
         },
         {
             "role": "user",
