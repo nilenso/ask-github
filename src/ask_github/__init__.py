@@ -15,7 +15,7 @@ from . import github, gitlab
 load_dotenv()
 
 # Enable litellm logging
-os.environ['LITELLM_LOG'] = 'INFO'
+# os.environ['LITELLM_LOG'] = 'INFO'
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -35,7 +35,7 @@ def detect_platform(repo_url: str) -> Platform:
         return "gitlab"
     else:
         # Default to GitHub for unknown domains
-        logger.warning(f"Unknown platform for URL {repo_url}, defaulting to GitHub")
+        logger.debug(f"Unknown platform for URL {repo_url}, defaulting to GitHub")
         return "github"
 
 
@@ -130,9 +130,8 @@ TOOLS = [
 
 def execute_tool(tool_name: str, arguments: dict[str, Any], platform: Platform, token: str | None = None, default_ref: str | None = None) -> Any:
     """Execute a tool by name with given arguments on the specified platform."""
-    logger.info(f"[execute_tool] Platform: {platform}, Tool: {tool_name}")
-    logger.info(f"[execute_tool] Arguments: {json.dumps(arguments, indent=2)}")
-    logger.info(f"[execute_tool] Token present: {token is not None}, starts with: {token[:15] + '...' if token else 'None'}")
+    logger.info(f"{tool_name}({', '.join(f'{k}={v}' for k, v in arguments.items())})")
+    logger.debug(f"[execute_tool] Platform: {platform}, Token present: {token is not None}")
 
     # Add token to arguments (parameter name is github_token for API compatibility)
     tool_args = {**arguments, "github_token": token}
@@ -143,7 +142,7 @@ def execute_tool(tool_name: str, arguments: dict[str, Any], platform: Platform, 
     # If the tool accepts ref and none was provided, use the default ref
     if tool_name in tools_with_ref and "ref" not in arguments and default_ref:
         tool_args["ref"] = default_ref
-        logger.info(f"[execute_tool] Injecting default ref: {default_ref}")
+        logger.debug(f"[execute_tool] Injecting default ref: {default_ref}")
 
     # Select platform module
     module = github if platform == "github" else gitlab
@@ -182,7 +181,7 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
     """
     # Detect platform from URL
     platform = detect_platform(repo_url)
-    logger.info(f"[ask] Detected platform: {platform}")
+    logger.debug(f"[ask] Detected platform: {platform}")
 
     # Parse repository URL using platform-specific parser
     module = github if platform == "github" else gitlab
@@ -194,15 +193,15 @@ def ask(repo_url: str, prompt: str, max_iterations: int = 20, token: str | None 
         # Use platform-specific environment variable
         env_var = "GITHUB_TOKEN" if platform == "github" else "GITLAB_TOKEN"
         auth_token = os.getenv(env_var)
-        logger.info(f"[ask] Using {env_var} from environment")
+        logger.debug(f"[ask] Using {env_var} from environment")
 
     # If no ref specified in URL, get the default branch
     if ref is None:
         repo_info = module.get_repo_info(owner, repo, github_token=auth_token)
         ref = repo_info.get("default_branch", "main")
-        logger.info(f"[ask] No ref in URL, using default branch: {ref}")
+        logger.debug(f"[ask] No ref in URL, using default branch: {ref}")
     else:
-        logger.info(f"[ask] Using ref from URL: {ref}")
+        logger.debug(f"[ask] Using ref from URL: {ref}")
 
     # Set default litellm config values
     llm_params = {

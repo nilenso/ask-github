@@ -41,7 +41,7 @@ def parse_repo_url(repo_url: str) -> tuple[str, str, str | None]:
 def get_repo_info(owner: str, repo: str, github_token: str | None = None) -> dict[str, Any]:
     """Get repository information including default branch."""
     url = f"https://api.github.com/repos/{owner}/{repo}"
-    logger.info(f"[get_repo_info] GET {url}")
+    logger.debug(f"[get_repo_info] GET {url}")
 
     headers = {}
     token = github_token or os.getenv("GITHUB_TOKEN")
@@ -49,14 +49,12 @@ def get_repo_info(owner: str, repo: str, github_token: str | None = None) -> dic
         # Use Bearer for fine-grained tokens (github_pat_*), token for classic tokens (ghp_*)
         prefix = "Bearer" if token.startswith("github_pat_") else "token"
         headers["Authorization"] = f"{prefix} {token}"
-        logger.info(f"[get_repo_info] Using {prefix} auth with token: {token[:20]}...")
-    else:
-        logger.warning(f"[get_repo_info] No GitHub token provided!")
+        logger.debug(f"[get_repo_info] Using {prefix} auth")
 
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     data = response.json()
-    logger.info(f"[get_repo_info] Response: {json.dumps(data, indent=2)}")
+    logger.debug(f"[get_repo_info] Got default_branch: {data.get('default_branch')}")
     return data
 
 
@@ -65,7 +63,7 @@ def read_file(owner: str, repo: str, path: str, ref: str | None = None, github_t
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     if ref:
         url += f"?ref={ref}"
-    logger.info(f"[read_file] GET {url}")
+    logger.debug(f"[read_file] GET {url}")
 
     headers = {}
     token = github_token or os.getenv("GITHUB_TOKEN")
@@ -80,7 +78,7 @@ def read_file(owner: str, repo: str, path: str, ref: str | None = None, github_t
 
     if isinstance(data, dict) and "content" in data:
         content = base64.b64decode(data["content"]).decode("utf-8")
-        logger.info(f"[read_file] Successfully read file (length: {len(content)} chars)")
+        logger.debug(f"[read_file] Read {len(content)} chars")
         return content
     raise ValueError(f"Path {path} is not a file")
 
@@ -90,7 +88,7 @@ def list_directory(owner: str, repo: str, path: str, ref: str | None = None, git
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     if ref:
         url += f"?ref={ref}"
-    logger.info(f"[list_directory] GET {url}")
+    logger.debug(f"[list_directory] GET {url}")
 
     headers = {}
     token = github_token or os.getenv("GITHUB_TOKEN")
@@ -105,7 +103,7 @@ def list_directory(owner: str, repo: str, path: str, ref: str | None = None, git
 
     if isinstance(data, list):
         result = [{"name": item["name"], "type": item["type"], "path": item["path"]} for item in data]
-        logger.info(f"[list_directory] Found {len(result)} items: {json.dumps(result, indent=2)}")
+        logger.debug(f"[list_directory] Found {len(result)} items")
         return result
     raise ValueError(f"Path {path} is not a directory")
 
@@ -115,7 +113,7 @@ def list_tree(owner: str, repo: str, ref: str, recursive: bool = True, github_to
     url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{ref}"
     if recursive:
         url += "?recursive=1"
-    logger.info(f"[list_tree] GET {url}")
+    logger.debug(f"[list_tree] GET {url}")
 
     headers = {}
     token = github_token or os.getenv("GITHUB_TOKEN")
@@ -130,7 +128,7 @@ def list_tree(owner: str, repo: str, ref: str, recursive: bool = True, github_to
 
     if "tree" in data:
         result = [{"path": item["path"], "type": item["type"]} for item in data["tree"]]
-        logger.info(f"[list_tree] Found {len(result)} items in tree")
+        logger.debug(f"[list_tree] Found {len(result)} items")
         return result
     return []
 
@@ -139,7 +137,7 @@ def search_code(owner: str, repo: str, query: str, per_page: int = 30, page: int
     """Search for code in the repository."""
     search_query = f"{query}+repo:{owner}/{repo}"
     url = f"https://api.github.com/search/code?q={search_query}&per_page={per_page}&page={page}"
-    logger.info(f"[search_code] GET {url}")
+    logger.debug(f"[search_code] GET {url}")
 
     headers = {}
     token = github_token or os.getenv("GITHUB_TOKEN")
@@ -161,5 +159,5 @@ def search_code(owner: str, repo: str, query: str, per_page: int = 30, page: int
         })
 
     result = {"total_count": data.get("total_count", 0), "items": results}
-    logger.info(f"[search_code] Response: {json.dumps(result, indent=2)}")
+    logger.debug(f"[search_code] Found {result['total_count']} results")
     return result
