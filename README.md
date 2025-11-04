@@ -29,9 +29,9 @@ Basic usage:
 ask-github <repo-url> "<your-question>"
 
 # Ask about any repository
-ask-github https://github.com/postgres/postgres "How is autovacuum implemented?"
-ask-github https://github.com/torvalds/linux "How does the ls command work?"
-ask-github https://github.com/nilenso/ask-github "What GitLab operations are supported?"
+uv run ask-github https://github.com/karpathy/nanochat "What exactly does the speedrun.sh script do?"
+uv run ask-github https://github.com/cline/cline "How is semantic code search implemented?"
+uv run ask-github https://github.com/nilenso/ask-github "What GitLab operations are supported?"
 ```
 
 Options:
